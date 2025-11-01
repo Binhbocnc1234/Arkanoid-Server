@@ -1,3 +1,5 @@
+package com.example;
+
 import com.esotericsoftware.kryonet.*;
 import com.esotericsoftware.kryo.Kryo;
 
@@ -7,7 +9,7 @@ public class RelayServer {
 
     public void start() throws Exception {
         Kryo kryo = server.getKryo();
-        kryo.register(byte[].class); // send any small binary message
+        kryo.register(byte[].class);
         server.start();
         server.bind(54555, 54777);
 
