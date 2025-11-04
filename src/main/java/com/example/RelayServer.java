@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
 
-import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
@@ -14,10 +13,12 @@ public class RelayServer {
     private Connection playerA, playerB;
 
     public void start() throws Exception {
-        Kryo kryo = server.getKryo();
-        kryo.register(byte[].class);
+        // Register byte[] class with Kryo for serialization
+        server.getKryo().register(byte[].class);
+        
         server.start();
-        server.bind(54555, 54777);
+        // TCP-only mode for ngrok compatibility
+        server.bind(54555);
 
         server.addListener(new Listener() {
             @Override
@@ -78,8 +79,9 @@ public class RelayServer {
 
         // Thông báo cho chủ server
         String publicIP = getPublicIP();
-        System.out.println("Relay server started on ports 54555/54777 urraaaaaa!");
+        
         System.out.println("Public IP: " + publicIP);
+        System.out.println("Relay server started on ports 54555/54777");
     }
     public static String getPublicIP() {
         try {
@@ -93,26 +95,25 @@ public class RelayServer {
     }
     public static void main(String[] args) throws Exception {
         new RelayServer().start();
-        
-        new Thread(() -> {
-        try {
-            int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
-            com.sun.net.httpserver.HttpServer http =
-                com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress(port), 0);
-
-            http.createContext("/", exchange -> {
-                String resp = "Relay server is alive.";
-                exchange.sendResponseHeaders(200, resp.getBytes().length);
-                exchange.getResponseBody().write(resp.getBytes());
-                exchange.close();
-            });
-
-            http.start();
-            System.out.println("HTTP keep-alive running on port " + port);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
-
     }
 }
+
+// new Thread(() -> {
+//         try {
+//             int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
+//             com.sun.net.httpserver.HttpServer http =
+//                 com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress(port), 0);
+
+//             http.createContext("/", exchange -> {
+//                 String resp = "Relay server is alive.";
+//                 exchange.sendResponseHeaders(200, resp.getBytes().length);
+//                 exchange.getResponseBody().write(resp.getBytes());
+//                 exchange.close();
+//             });
+
+//             http.start();
+//             System.out.println("HTTP keep-alive running on port " + port);
+//             } catch (Exception e) {
+//                 e.printStackTrace();
+//             }
+//         }).start();
