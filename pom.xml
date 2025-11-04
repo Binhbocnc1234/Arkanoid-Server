@@ -21,19 +21,33 @@
 
   <build>
     <plugins>
+      <!-- Plugin tạo fat jar -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-jar-plugin</artifactId>
-        <version>3.3.0</version>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.6.0</version>
         <configuration>
-            <archive>
-                <manifest>
-                    <addClasspath>true</addClasspath>
-                    <mainClass>com.example.RelayServer</mainClass>
-                </manifest>
-            </archive>
+          <archive>
+            <manifest>
+              <mainClass>com.example.RelayServer</mainClass>
+            </manifest>
+          </archive>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
         </configuration>
+        <executions>
+          <execution>
+            <id>make-assembly</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
+
+      <!-- (tuỳ chọn) plugin chạy lệnh mvn exec:java -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
@@ -44,4 +58,5 @@
       </plugin>
     </plugins>
   </build>
+
 </project>
