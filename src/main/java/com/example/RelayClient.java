@@ -1,11 +1,12 @@
 package com.example;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+
+import com.example.messages.*;
 
 public class RelayClient {
     private final Client client = new Client();
@@ -19,36 +20,32 @@ public class RelayClient {
     private RelayListener relayListener;
 
     public void start(String host, int tcpPort) throws Exception {
-        // Register byte[] class with Kryo for serialization
-        client.getKryo().register(byte[].class);
+        // Register message classes with Kryo for serialization
+        client.getKryo().register(AssignIdMessage.class);
+        client.getKryo().register(StartMessage.class);
+        client.getKryo().register(DisconnectMessage.class);
+        client.getKryo().register(PeerJoinedMessage.class);
+        client.getKryo().register(JoinMessage.class);
+        client.getKryo().register(PositionMessage.class);
         
         listener = new Listener() {
             @Override
             public void received(Connection c, Object o) {
-                if (!(o instanceof byte[] data)) return;
-                if (data.length < 1) return;
-                int opcode = data[0] & 0xFF;
-                switch (opcode) {
-                    case 0x01: // ASSIGN_ID
-                        int id = (data.length >= 2) ? (data[1] & 0xFF) : 0;
-                        System.out.println("Assigned id: " + id);
-                        if (relayListener != null) relayListener.onAssigned(id);
-                        break;
-                    case 0x02: // START
-                        System.out.println("Start received");
-                        if (relayListener != null) relayListener.onStart();
-                        break;
-                    case 0x06: // PEER_JOINED
-                        System.out.println("Peer joined");
-                        if (relayListener != null) relayListener.onPeerJoined();
-                        break;
-                    case 0x05: // DISCONNECT
-                        System.out.println("Peer disconnected");
-                        if (relayListener != null) relayListener.onPeerDisconnected();
-                        break;
-                    default:
-                        // other opcodes (pos) handled elsewhere later
-                        break;
+                if (o instanceof AssignIdMessage msg) {
+                    System.out.println("Received: " + msg);
+                    if (relayListener != null) relayListener.onAssigned(msg.id);
+                } else if (o instanceof StartMessage msg) {
+                    System.out.println("Received: " + msg);
+                    if (relayListener != null) relayListener.onStart();
+                } else if (o instanceof PeerJoinedMessage msg) {
+                    System.out.println("Received: " + msg);
+                    if (relayListener != null) relayListener.onPeerJoined();
+                } else if (o instanceof DisconnectMessage msg) {
+                    System.out.println("Received: " + msg);
+                    if (relayListener != null) relayListener.onPeerDisconnected();
+                } else if (o instanceof PositionMessage msg) {
+                    // Position messages are handled elsewhere if needed
+                    System.out.println("Received: " + msg);
                 }
             }
         };
@@ -75,29 +72,28 @@ public class RelayClient {
     }
 
     public void sendPosition(float x, float y) {
-        ByteBuffer buf = ByteBuffer.allocate(8);
-        buf.putFloat(x).putFloat(y);
-        client.sendTCP(buf.array());
+        PositionMessage msg = new PositionMessage(x, y);
+        client.sendTCP(msg);
     }
 
     public void setRelayListener(RelayListener l) {
         this.relayListener = l;
     }
 
-    // Send a JOIN message (opcode 0x10) to inform server we're here
+    // Send a JOIN message to inform server we're here
     public void sendJoin() {
-        byte[] msg = new byte[] {(byte)0x10};
+        JoinMessage msg = new JoinMessage();
         client.sendTCP(msg);
     }
 
     // Send START (only player1 will do this)
     public void sendStart() {
-        byte[] msg = new byte[] {(byte)0x02};
+        StartMessage msg = new StartMessage();
         client.sendTCP(msg);
     }
 
     public void sendDisconnect() {
-        byte[] msg = new byte[] {(byte)0x05};
+        DisconnectMessage msg = new DisconnectMessage();
         client.sendTCP(msg);
     }
 

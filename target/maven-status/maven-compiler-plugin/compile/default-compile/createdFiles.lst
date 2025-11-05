@@ -1,2 +1,4 @@
 com\example\RelayServer.class
-com\example\RelayServer$1.class
+com\example\RelayClient.class
+com\example\RelayClient$RelayListener.class
+com\example\RelayClient$1.class

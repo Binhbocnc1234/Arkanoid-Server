@@ -8,13 +8,20 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 
+import com.example.messages.*;
+
 public class RelayServer {
     private final Server server = new Server();
     private Connection playerA, playerB;
 
     public void start() throws Exception {
-        // Register byte[] class with Kryo for serialization
-        server.getKryo().register(byte[].class);
+        // Register message classes with Kryo for serialization
+        server.getKryo().register(AssignIdMessage.class);
+        server.getKryo().register(StartMessage.class);
+        server.getKryo().register(DisconnectMessage.class);
+        server.getKryo().register(PeerJoinedMessage.class);
+        server.getKryo().register(JoinMessage.class);
+        server.getKryo().register(PositionMessage.class);
         
         server.start();
         // TCP-only mode for ngrok compatibility
@@ -27,17 +34,27 @@ public class RelayServer {
                 if (playerA == null) {
                     playerA = c;
                     // assign id 1
-                    c.sendTCP(new byte[] {(byte)0x01, (byte)1});
+                    AssignIdMessage msg = new AssignIdMessage(1);
+                    System.out.println("Sending: " + msg);
+                    c.sendTCP(msg);
                 }
                 else if (playerB == null) {
                     playerB = c;
-                    c.sendTCP(new byte[] {(byte)0x01, (byte)2});
-                    // inform playerA that playerB joined (optional)
-                    if (playerA != null) playerA.sendTCP(new byte[] {(byte)0x06}); // opcode 0x06 = PEER_JOINED
+                    AssignIdMessage msg = new AssignIdMessage(2);
+                    System.out.println("Sending: " + msg);
+                    c.sendTCP(msg);
+                    // inform playerA that playerB joined
+                    if (playerA != null) {
+                        PeerJoinedMessage peerMsg = new PeerJoinedMessage();
+                        System.out.println("Sending to playerA: " + peerMsg);
+                        playerA.sendTCP(peerMsg);
+                    }
                 }
                 else {
                     // room full
-                    c.sendTCP(new byte[] {(byte)0x01, (byte)0});
+                    AssignIdMessage msg = new AssignIdMessage(0);
+                    System.out.println("Sending: " + msg + " (room full)");
+                    c.sendTCP(msg);
                     c.close();
                 }
             }
@@ -47,33 +64,60 @@ public class RelayServer {
                 System.out.println("Client disconnected: " + c.getID());
                 if (c == playerA) {
                     playerA = null;
-                    if (playerB != null) playerB.sendTCP(new byte[] {(byte)0x05}); // peer disconnect
+                    if (playerB != null) {
+                        DisconnectMessage msg = new DisconnectMessage();
+                        System.out.println("Sending to playerB: " + msg);
+                        playerB.sendTCP(msg);
+                    }
                 }
                 if (c == playerB) {
                     playerB = null;
-                    if (playerA != null) playerA.sendTCP(new byte[] {(byte)0x05});
+                    if (playerA != null) {
+                        DisconnectMessage msg = new DisconnectMessage();
+                        System.out.println("Sending to playerA: " + msg);
+                        playerA.sendTCP(msg);
+                    }
                 }
             }
 
             public void received(Connection c, Object o) {
-                if (!(o instanceof byte[] data)) return;
-                if (data.length < 1) return;
-                int opcode = data[0] & 0xFF;
-                // START opcode from player1 should be broadcast to both
-                if (opcode == 0x02) {
-                    if (playerA != null) playerA.sendTCP(new byte[] {(byte)0x02});
-                    if (playerB != null) playerB.sendTCP(new byte[] {(byte)0x02});
+                System.out.println("Received from " + c.getID() + ": " + o);
+                
+                // START message from player1 should be broadcast to both
+                if (o instanceof StartMessage msg) {
+                    if (playerA != null) {
+                        System.out.println("Broadcasting START to playerA");
+                        playerA.sendTCP(msg);
+                    }
+                    if (playerB != null) {
+                        System.out.println("Broadcasting START to playerB");
+                        playerB.sendTCP(msg);
+                    }
                     return;
                 }
-                // DISCONNECT forwarded
-                if (opcode == 0x05) {
+                
+                // DISCONNECT message forwarded to peer
+                if (o instanceof DisconnectMessage msg) {
                     Connection target = (c == playerA ? playerB : playerA);
-                    if (target != null) target.sendTCP(new byte[] {(byte)0x05});
+                    if (target != null) {
+                        System.out.println("Forwarding DISCONNECT to peer");
+                        target.sendTCP(msg);
+                    }
                     return;
                 }
-                // default relay: forward to peer
+                
+                // JOIN message - just acknowledge (handled in connected())
+                if (o instanceof JoinMessage) {
+                    // Already handled in connected() callback
+                    return;
+                }
+                
+                // Default: forward all other messages (like PositionMessage) to peer
                 Connection target = (c == playerA ? playerB : playerA);
-                if (target != null) target.sendTCP(data);
+                if (target != null) {
+                    System.out.println("Forwarding to peer: " + o);
+                    target.sendTCP(o);
+                }
             }
         });
 
@@ -81,7 +125,7 @@ public class RelayServer {
         String publicIP = getPublicIP();
         
         System.out.println("Public IP: " + publicIP);
-        System.out.println("Relay server started on ports 54555/54777");
+        System.out.println("Relay server started on ports 54555");
     }
     public static String getPublicIP() {
         try {
